@@ -29,11 +29,12 @@ func main() {
 
 	// set the Transcription options
 	options := interfaces.LiveTranscriptionOptions{
-		Language:   "en-US",
-		Punctuate:  true,
-		Encoding:   "mulaw",
-		Channels:   1,
-		SampleRate: 8000,
+		Model:       "nova-2",
+		Language:    "en-US",
+		SmartFormat: true,
+		Encoding:    "flac",
+		Channels:    1,
+		SampleRate:  44100,
 	}
 
 	// create a Deepgram client
@@ -53,8 +54,8 @@ func main() {
 	/*
 		Replay wav into Live stream
 	*/
-	play, err := replay.New(replay.ReplayOptions{
-		FullFilename: "testing.wav",
+	play, err := replay.NewFlac(replay.ReplayOptions{
+		FullFilename: "testing.flac",
 	})
 	if err != nil {
 		fmt.Printf("replay.New failed. Err: %v\n", err)

@@ -8,6 +8,9 @@ import (
 	"os"
 	"sync"
 
+	_ "azul3d.org/audio/flac.v0" // Add FLAC decoding support.
+
+	flac "github.com/mewkiz/flac"
 	wav "github.com/youpy/go-wav"
 )
 
@@ -17,12 +20,24 @@ type ReplayOptions struct {
 }
 
 // Client is a replay device. In this case, an audio stream.
-type Client struct {
+type WavClient struct {
 	options ReplayOptions
 
 	// wav
 	file    *os.File
 	decoder *wav.Reader
+
+	// operational stuff
+	stopChan chan struct{}
+	mute     sync.Mutex
+	muted    bool
+}
+type FlacClient struct {
+	options ReplayOptions
+
+	// wav
+	file    *os.File
+	decoder *flac.Stream
 
 	// operational stuff
 	stopChan chan struct{}
