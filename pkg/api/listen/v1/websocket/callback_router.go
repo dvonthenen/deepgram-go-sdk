@@ -15,43 +15,49 @@ import (
 	interfaces "github.com/deepgram/deepgram-go-sdk/pkg/api/listen/v1/websocket/interfaces"
 )
 
-// MessageRouter routes events
-type MessageRouter struct {
-	callback       interfaces.LiveMessageCallback
-	debugWebsocket bool
+// NewWithDefault creates a CallbackRouter with the default callback handler
+// Deprecated: Use NewCallbackWithDefault instead
+func NewWithDefault() *CallbackRouter {
+	return NewCallbackWithDefault()
 }
 
-// NewWithDefault creates a MessageRouter with the default callback handler
-func NewWithDefault() *MessageRouter {
-	return New(NewDefaultCallbackHandler())
+// NewCallbackWithDefault creates a CallbackRouter with the default callback handler
+func NewCallbackWithDefault() *CallbackRouter {
+	return NewCallbackRouter(NewDefaultCallbackHandler())
 }
 
-// New creates a MessageRouter with a user-defined callback
-func New(callback interfaces.LiveMessageCallback) *MessageRouter {
+// New creates a CallbackRouter with a user-defined callback
+// Deprecated: Use NewCallbackRouter instead
+func New(callback interfaces.LiveMessageCallback) *CallbackRouter {
+	return NewCallbackRouter(callback)
+}
+
+// New creates a CallbackRouter with a user-defined callback
+func NewCallbackRouter(callback interfaces.LiveMessageCallback) *CallbackRouter {
 	debugStr := os.Getenv("DEEPGRAM_DEBUG_WEBSOCKET")
-	return &MessageRouter{
+	return &CallbackRouter{
 		callback:       callback,
 		debugWebsocket: strings.EqualFold(strings.ToLower(debugStr), "true"),
 	}
 }
 
 // OpenHelper handles the OpenResponse message
-func (r *MessageRouter) OpenHelper(or *interfaces.OpenResponse) error {
+func (r *CallbackRouter) OpenHelper(or *interfaces.OpenResponse) error {
 	return r.callback.Open(or)
 }
 
 // OpenResponse handles the OpenResponse message
-func (r *MessageRouter) CloseHelper(or *interfaces.CloseResponse) error {
+func (r *CallbackRouter) CloseHelper(or *interfaces.CloseResponse) error {
 	return r.callback.Close(or)
 }
 
 // ErrorResponse handles the OpenResponse message
-func (r *MessageRouter) ErrorHelper(er *interfaces.ErrorResponse) error {
+func (r *CallbackRouter) ErrorHelper(er *interfaces.ErrorResponse) error {
 	return r.callback.Error(er)
 }
 
 // processMessage generalizes the handling of all message types
-func (r *MessageRouter) processGeneric(msgType string, byMsg []byte, action func(data *interface{}) error, data interface{}) error {
+func (r *CallbackRouter) processGeneric(msgType string, byMsg []byte, action func(data *interface{}) error, data interface{}) error {
 	klog.V(6).Infof("router.%s ENTER\n", msgType)
 
 	r.printDebugMessages(5, msgType, byMsg)
@@ -67,7 +73,7 @@ func (r *MessageRouter) processGeneric(msgType string, byMsg []byte, action func
 	return err
 }
 
-func (r *MessageRouter) processMessage(byMsg []byte) error {
+func (r *CallbackRouter) processMessage(byMsg []byte) error {
 	var msg interfaces.MessageResponse
 	if err := json.Unmarshal(byMsg, &msg); err != nil {
 		return err
@@ -80,7 +86,7 @@ func (r *MessageRouter) processMessage(byMsg []byte) error {
 	return r.processGeneric("MessageResponse", byMsg, action, msg)
 }
 
-func (r *MessageRouter) processMetadata(byMsg []byte) error {
+func (r *CallbackRouter) processMetadata(byMsg []byte) error {
 	var msg interfaces.MetadataResponse
 	if err := json.Unmarshal(byMsg, &msg); err != nil {
 		return err
@@ -93,7 +99,7 @@ func (r *MessageRouter) processMetadata(byMsg []byte) error {
 	return r.processGeneric("MetadataResponse", byMsg, action, msg)
 }
 
-func (r *MessageRouter) processSpeechStartedResponse(byMsg []byte) error {
+func (r *CallbackRouter) processSpeechStartedResponse(byMsg []byte) error {
 	var msg interfaces.SpeechStartedResponse
 	if err := json.Unmarshal(byMsg, &msg); err != nil {
 		return err
@@ -106,7 +112,7 @@ func (r *MessageRouter) processSpeechStartedResponse(byMsg []byte) error {
 	return r.processGeneric("SpeechStartedResponse", byMsg, action, msg)
 }
 
-func (r *MessageRouter) processUtteranceEndResponse(byMsg []byte) error {
+func (r *CallbackRouter) processUtteranceEndResponse(byMsg []byte) error {
 	var msg interfaces.UtteranceEndResponse
 	if err := json.Unmarshal(byMsg, &msg); err != nil {
 		return err
@@ -119,7 +125,7 @@ func (r *MessageRouter) processUtteranceEndResponse(byMsg []byte) error {
 	return r.processGeneric("UtteranceEndResponse", byMsg, action, msg)
 }
 
-func (r *MessageRouter) processErrorResponse(byMsg []byte) error {
+func (r *CallbackRouter) processErrorResponse(byMsg []byte) error {
 	var msg interfaces.ErrorResponse
 	if err := json.Unmarshal(byMsg, &msg); err != nil {
 		return err
@@ -133,7 +139,7 @@ func (r *MessageRouter) processErrorResponse(byMsg []byte) error {
 }
 
 // Message handles platform messages and routes them appropriately based on the MessageType
-func (r *MessageRouter) Message(byMsg []byte) error {
+func (r *CallbackRouter) Message(byMsg []byte) error {
 	klog.V(6).Infof("router.Message ENTER\n")
 
 	if r.debugWebsocket {
@@ -173,7 +179,7 @@ func (r *MessageRouter) Message(byMsg []byte) error {
 }
 
 // UnhandledMessage logs and handles any unexpected message types
-func (r *MessageRouter) UnhandledMessage(byMsg []byte) error {
+func (r *CallbackRouter) UnhandledMessage(byMsg []byte) error {
 	klog.V(6).Infof("router.UnhandledMessage ENTER\n")
 	r.printDebugMessages(3, "UnhandledMessage", byMsg)
 	klog.V(1).Infof("Unknown Event was received\n")
@@ -182,7 +188,7 @@ func (r *MessageRouter) UnhandledMessage(byMsg []byte) error {
 }
 
 // printDebugMessages formats and logs debugging messages
-func (r *MessageRouter) printDebugMessages(level klog.Level, function string, byMsg []byte) {
+func (r *CallbackRouter) printDebugMessages(level klog.Level, function string, byMsg []byte) {
 	prettyJSON, err := prettyjson.Format(byMsg)
 	if err != nil {
 		klog.V(1).Infof("prettyjson.Format failed. Err: %v\n", err)
