@@ -34,25 +34,29 @@ func New(callback interfaces.LiveMessageCallback) *CallbackRouter {
 
 // New creates a CallbackRouter with a user-defined callback
 func NewCallbackRouter(callback interfaces.LiveMessageCallback) *CallbackRouter {
-	debugStr := os.Getenv("DEEPGRAM_DEBUG_WEBSOCKET")
+	var debugStr string
+	if v := os.Getenv("DEEPGRAM_DEBUG"); v != "" {
+		klog.V(4).Infof("DEEPGRAM_DEBUG found")
+		debugStr = v
+	}
 	return &CallbackRouter{
 		callback:       callback,
 		debugWebsocket: strings.EqualFold(strings.ToLower(debugStr), "true"),
 	}
 }
 
-// OpenHelper handles the OpenResponse message
-func (r *CallbackRouter) OpenHelper(or *interfaces.OpenResponse) error {
+// Open sends an OpenResponse message to the callback
+func (r *CallbackRouter) Open(or *interfaces.OpenResponse) error {
 	return r.callback.Open(or)
 }
 
-// OpenResponse handles the OpenResponse message
-func (r *CallbackRouter) CloseHelper(or *interfaces.CloseResponse) error {
+// Close sends an CloseResponse message to the callback
+func (r *CallbackRouter) Close(or *interfaces.CloseResponse) error {
 	return r.callback.Close(or)
 }
 
-// ErrorResponse handles the OpenResponse message
-func (r *CallbackRouter) ErrorHelper(er *interfaces.ErrorResponse) error {
+// Error sends an ErrorResponse message to the callback
+func (r *CallbackRouter) Error(er *interfaces.ErrorResponse) error {
 	return r.callback.Error(er)
 }
 
@@ -154,7 +158,7 @@ func (r *CallbackRouter) Message(byMsg []byte) error {
 	}
 
 	var err error
-	switch mt.Type {
+	switch interfaces.TypeResponse(mt.Type) {
 	case interfaces.TypeMessageResponse:
 		err = r.processMessage(byMsg)
 	case interfaces.TypeMetadataResponse:

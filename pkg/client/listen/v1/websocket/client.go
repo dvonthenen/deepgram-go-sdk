@@ -19,7 +19,6 @@ import (
 	"github.com/dvonthenen/websocket"
 	klog "k8s.io/klog/v2"
 
-	live "github.com/deepgram/deepgram-go-sdk/pkg/api/listen/v1/websocket"
 	msginterfaces "github.com/deepgram/deepgram-go-sdk/pkg/api/listen/v1/websocket/interfaces"
 	version "github.com/deepgram/deepgram-go-sdk/pkg/api/version"
 	interfaces "github.com/deepgram/deepgram-go-sdk/pkg/client/interfaces"
@@ -27,93 +26,6 @@ import (
 
 type controlMessage struct {
 	Type string `json:"type"`
-}
-
-/*
-NewForDemo creates a new websocket connection with all default options
-
-Notes:
-  - The Deepgram API KEY is read from the environment variable DEEPGRAM_API_KEY
-*/
-func NewForDemo(ctx context.Context, options *interfaces.LiveTranscriptionOptions) (*Client, error) {
-	return New(ctx, "", &interfaces.ClientOptions{}, options, nil)
-}
-
-/*
-NewWithDefaults creates a new websocket connection with all default options
-
-Notes:
-  - The Deepgram API KEY is read from the environment variable DEEPGRAM_API_KEY
-  - The callback handler is set to the default handler which just prints all messages to the console
-*/
-func NewWithDefaults(ctx context.Context, options *interfaces.LiveTranscriptionOptions, callback msginterfaces.LiveMessageCallback) (*Client, error) {
-	return New(ctx, "", &interfaces.ClientOptions{}, options, callback)
-}
-
-/*
-New creates a new websocket connection with the specified options
-
-Input parameters:
-- ctx: context.Context object
-- apiKey: string containing the Deepgram API key
-- cOptions: ClientOptions which allows overriding things like hostname, version of the API, etc.
-- tOptions: LiveTranscriptionOptions which allows overriding things like language, model, etc.
-- callback: LiveMessageCallback which is a callback that allows you to perform actions based on the transcription
-*/
-func New(ctx context.Context, apiKey string, cOptions *interfaces.ClientOptions, tOptions *interfaces.LiveTranscriptionOptions, callback msginterfaces.LiveMessageCallback) (*Client, error) {
-	ctx, ctxCancel := context.WithCancel(ctx)
-	return NewWithCancel(ctx, ctxCancel, apiKey, cOptions, tOptions, callback)
-}
-
-/*
-New creates a new websocket connection with the specified options
-
-Input parameters:
-- ctx: context.Context object
-- ctxCancel: allow passing in own cancel
-- apiKey: string containing the Deepgram API key
-- cOptions: ClientOptions which allows overriding things like hostname, version of the API, etc.
-- tOptions: LiveTranscriptionOptions which allows overriding things like language, model, etc.
-- callback: LiveMessageCallback which is a callback that allows you to perform actions based on the transcription
-*/
-func NewWithCancel(ctx context.Context, ctxCancel context.CancelFunc, apiKey string, cOptions *interfaces.ClientOptions, tOptions *interfaces.LiveTranscriptionOptions, callback msginterfaces.LiveMessageCallback) (*Client, error) {
-	klog.V(6).Infof("live.New() ENTER\n")
-
-	if apiKey != "" {
-		cOptions.APIKey = apiKey
-	}
-	err := cOptions.Parse()
-	if err != nil {
-		klog.V(1).Infof("ClientOptions.Parse() failed. Err: %v\n", err)
-		return nil, err
-	}
-	err = tOptions.Check()
-	if err != nil {
-		klog.V(1).Infof("TranscribeOptions.Check() failed. Err: %v\n", err)
-		return nil, err
-	}
-
-	if callback == nil {
-		klog.V(2).Infof("Using DefaultCallbackHandler.\n")
-		callback = live.NewDefaultCallbackHandler()
-	}
-
-	// init
-	conn := Client{
-		cOptions:  cOptions,
-		tOptions:  tOptions,
-		sendBuf:   make(chan []byte, 1),
-		callback:  callback,
-		router:    live.New(callback),
-		ctx:       ctx,
-		ctxCancel: ctxCancel,
-		retry:     true,
-	}
-
-	klog.V(3).Infof("NewDeepGramWSClient Succeeded\n")
-	klog.V(6).Infof("live.New() LEAVE\n")
-
-	return &conn, nil
 }
 
 // Connect performs a websocket connection with "DefaultConnectRetry" number of retries.
@@ -272,11 +184,11 @@ func (c *Client) internalConnectWithCancel(ctx context.Context, ctxCancel contex
 		}
 
 		// fire off open connection
-		err = c.router.OpenHelper(&msginterfaces.OpenResponse{
-			Type: msginterfaces.TypeOpenResponse,
+		err = (*c.router).Open(&msginterfaces.OpenResponse{
+			Type: string(msginterfaces.TypeOpenResponse),
 		})
 		if err != nil {
-			klog.V(1).Infof("router.OpenHelper failed. Err: %v\n", err)
+			klog.V(1).Infof("router.Open failed. Err: %v\n", err)
 		}
 
 		klog.V(3).Infof("WebSocket Connection Successful!")
@@ -429,7 +341,7 @@ func (c *Client) listen() {
 
 		// callback
 		if msgType == websocket.TextMessage {
-			err := c.router.Message(byMsg)
+			err := (*c.router).Message(byMsg)
 			if err != nil {
 				klog.V(1).Infof("live.listen(): router.Message failed. Err: %v\n", err)
 			}
@@ -718,8 +630,8 @@ func (c *Client) closeWs(fatal bool) {
 
 	if fatal || c.wsconn != nil {
 		// fire off close connection
-		err := c.router.CloseHelper(&msginterfaces.CloseResponse{
-			Type: msginterfaces.TypeCloseResponse,
+		err := (*c.router).Close(&msginterfaces.CloseResponse{
+			Type: string(msginterfaces.TypeCloseResponse),
 		})
 		if err != nil {
 			klog.V(1).Infof("router.CloseHelper failed. Err: %v\n", err)
@@ -861,7 +773,7 @@ func (c *Client) flush() {
 // sendError sends an error message to the callback handler
 func (c *Client) sendError(err error) error {
 	response := c.errorToResponse(err)
-	sendErr := c.router.ErrorHelper(response)
+	sendErr := (*c.router).Error(response)
 	if err != nil {
 		klog.V(1).Infof("live.listen(): router.Error failed. Err: %v\n", sendErr)
 	}
@@ -889,7 +801,7 @@ func (c *Client) errorToResponse(err error) *msginterfaces.ErrorResponse {
 	}
 
 	response := &msginterfaces.ErrorResponse{
-		Type:        msginterfaces.TypeErrorResponse,
+		Type:        string(msginterfaces.TypeErrorResponse),
 		ErrMsg:      strings.TrimSpace(fmt.Sprintf("%s %s", errorCode, errorNum)),
 		Description: strings.TrimSpace(errorDesc),
 		Variant:     errorNum,
@@ -909,7 +821,7 @@ func (c *Client) inspect(byMsg []byte) error {
 		return err
 	}
 
-	switch mt.Type {
+	switch msginterfaces.TypeResponse(mt.Type) {
 	case msginterfaces.TypeMessageResponse:
 		klog.V(7).Infof("TypeMessageResponse\n")
 

@@ -11,7 +11,6 @@ import (
 
 	"github.com/dvonthenen/websocket"
 
-	live "github.com/deepgram/deepgram-go-sdk/pkg/api/listen/v1/websocket"
 	msginterface "github.com/deepgram/deepgram-go-sdk/pkg/api/listen/v1/websocket/interfaces"
 	interfaces "github.com/deepgram/deepgram-go-sdk/pkg/client/interfaces"
 )
@@ -31,7 +30,8 @@ type Client struct {
 	retryCnt int64
 
 	callback msginterface.LiveMessageCallback
-	router   *live.MessageRouter
+	chans    []*msginterface.LiveMessageChan
+	router   *msginterface.Router
 
 	// internal constants for retry, waits, back-off, etc.
 	lastDatagram *time.Time
